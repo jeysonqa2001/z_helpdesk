@@ -19,12 +19,12 @@ def formatear_duracion(inicio, fin):
     segundos = max(int((fin - inicio).total_seconds()), 0)
     dias, resto = divmod(segundos, 86400)
     horas, resto = divmod(resto, 3600)
-    minutos = resto // 60
+    minutos, seg = divmod(resto, 60)
     if dias:
-        return f"{dias}d {horas}h {minutos}m"
+        return f"{dias}d {horas}h {minutos}m {seg}s"
     if horas:
-        return f"{horas}h {minutos}m"
-    return f"{minutos}m"
+        return f"{horas}h {minutos}m {seg}s"
+    return f"{minutos}m {seg}s"
 
 
 class Departamento(Model):
@@ -97,10 +97,17 @@ class Ticket(AuditMixin, Model):
 
     @property
     def tiempo_respuesta(self):
+        # Creación -> inicio de atención (cuánto esperó el solicitante)
         return formatear_duracion(self.created_on, self.fecha_atencion)
 
     @property
     def tiempo_resolucion(self):
+        # Inicio de atención -> cierre (cuánto tardó el técnico)
+        return formatear_duracion(self.fecha_atencion, self.fecha_cierre)
+
+    @property
+    def tiempo_total(self):
+        # Creación -> cierre
         return formatear_duracion(self.created_on, self.fecha_cierre)
 
     @property

@@ -56,7 +56,7 @@ class VistaTicket(ModelView):
     show_title = "Detalle del ticket"
 
     list_columns = ["id", "titulo", "solicitante", "categoria", "prioridad", "estado",
-                    "tecnico", "tiempo_respuesta", "tiempo_resolucion"]
+                    "tecnico", "tiempo_respuesta", "tiempo_resolucion", "tiempo_total"]
     order_columns = ["id", "titulo", "created_on", "fecha_atencion", "fecha_cierre"]
     search_columns = ["titulo", "solicitante", "categoria", "prioridad", "estado", "asignado_a"]
     add_columns = ["titulo", "descripcion", "categoria", "prioridad", "estado"]
@@ -65,7 +65,7 @@ class VistaTicket(ModelView):
         ("Ticket", {"fields": ["titulo", "descripcion", "categoria", "prioridad", "estado"]}),
         ("Responsables", {"fields": ["solicitante", "asignado_a"]}),
         ("Tiempos", {"fields": ["created_on", "fecha_atencion", "fecha_cierre",
-                                "tiempo_respuesta", "tiempo_resolucion"]}),
+                                "tiempo_respuesta", "tiempo_resolucion", "tiempo_total"]}),
         ("Análisis con IA", {"fields": ["analisis_ia"], "expanded": True}),
     ]
     label_columns = {
@@ -82,17 +82,21 @@ class VistaTicket(ModelView):
         "fecha_cierre": "Fecha de cierre",
         "tiempo_respuesta": "Tiempo de respuesta",
         "tiempo_resolucion": "Tiempo de resolución",
+        "tiempo_total": "Tiempo total",
         "analisis_ia": "Análisis de IA",
         **ETIQUETAS_AUDITORIA,
     }
 
     def _actualizar_tiempos(self, item):
         ahora = datetime.now()
-        if item.estado and item.estado.nombre != "Abierto" and not item.fecha_atencion:
+        estado = item.estado
+        if estado is None:
+            return
+        if estado.nombre != "Abierto" and not item.fecha_atencion:
             item.fecha_atencion = ahora
-            if not item.asignado_a_fk:  # quien empieza a atender queda como técnico
-                item.asignado_a_fk = g.user.id
-        if item.estado and item.estado.es_cerrado:
+            if not item.asignado_a_fk and g.user:
+                item.asignado_a_fk = g.user.id  # quien empieza a atender queda como técnico
+        if estado.es_cerrado:
             if not item.fecha_cierre:
                 item.fecha_cierre = ahora
         else:
@@ -102,6 +106,8 @@ class VistaTicket(ModelView):
         self._actualizar_tiempos(item)
 
     def pre_update(self, item):
+        if item.estado and item.estado.es_cerrado and not item.fecha_atencion:
+            raise Exception("Primero pon el ticket 'En progreso' para registrar el inicio de atención.")
         self._actualizar_tiempos(item)
 
     @action("analizar_ia", "Analizar con IA", "¿Analizar este ticket con IA?", "fa-magic", single=True)

@@ -1,7 +1,30 @@
+from datetime import datetime
+from flask import g
 from flask_appbuilder import Model
 from flask_appbuilder.models.mixins import AuditMixin
-from sqlalchemy import Column, Integer, String, Text, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
+
+
+def usuario_actual():
+    try:
+        return g.user.id
+    except Exception:
+        return None
+
+
+def formatear_duracion(inicio, fin):
+    if not inicio or not fin:
+        return "—"
+    segundos = max(int((fin - inicio).total_seconds()), 0)
+    dias, resto = divmod(segundos, 86400)
+    horas, resto = divmod(resto, 3600)
+    minutos = resto // 60
+    if dias:
+        return f"{dias}d {horas}h {minutos}m"
+    if horas:
+        return f"{horas}h {minutos}m"
+    return f"{minutos}m"
 
 
 class Departamento(Model):
@@ -61,9 +84,28 @@ class Ticket(AuditMixin, Model):
     prioridad = relationship("Prioridad")
     estado_id = Column(Integer, ForeignKey("estado.id"), nullable=False)
     estado = relationship("Estado")
+
+    solicitante_fk = Column(Integer, ForeignKey("ab_user.id"), default=usuario_actual)
+    solicitante = relationship("User", foreign_keys=[solicitante_fk])
+
     asignado_a_fk = Column(Integer, ForeignKey("ab_user.id"))
     asignado_a = relationship("User", foreign_keys=[asignado_a_fk])
+
+    fecha_atencion = Column(DateTime)
+    fecha_cierre = Column(DateTime)
     analisis_ia = Column(Text)
+
+    @property
+    def tiempo_respuesta(self):
+        return formatear_duracion(self.created_on, self.fecha_atencion)
+
+    @property
+    def tiempo_resolucion(self):
+        return formatear_duracion(self.created_on, self.fecha_cierre)
+
+    @property
+    def tecnico(self):
+        return str(self.asignado_a) if self.asignado_a else "Sin asignar"
 
     def __repr__(self):
         return f"#{self.id} {self.titulo}"

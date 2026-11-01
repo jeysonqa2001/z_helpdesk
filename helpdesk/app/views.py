@@ -1,8 +1,11 @@
+from datetime import datetime
+
 from flask import g, flash, redirect
 from flask_appbuilder import ModelView
 from flask_appbuilder.models.sqla.interface import SQLAInterface
 from flask_appbuilder.models.sqla.filters import BaseFilter
 from flask_appbuilder.actions import action
+
 from . import appbuilder, db
 from .models import Departamento, Categoria, Prioridad, Estado, Ticket, Comentario
 from .ia import analizar_ticket
@@ -16,13 +19,13 @@ ETIQUETAS_AUDITORIA = {
 
 
 class FiltroTicketsPorRol(BaseFilter):
-    """Admin y Agente ven todo; el Usuario solo ve sus propios tickets."""
+    """Admin y Tecnico ven todo; el Solicitante solo ve sus propios tickets."""
     name = "Por rol"
     arg_name = "rol"
 
     def apply(self, query, value):
         roles = [r.name for r in g.user.roles]
-        if "Admin" in roles or "Agente" in roles:
+        if "Admin" in roles or "Tecnico" in roles:
             return query
         return query.filter(Ticket.created_by_fk == g.user.id)
 
@@ -52,12 +55,17 @@ class VistaTicket(ModelView):
     edit_title = "Editar ticket"
     show_title = "Detalle del ticket"
 
-    list_columns = ["id", "titulo", "categoria", "prioridad", "estado", "asignado_a", "created_on"]
-    search_columns = ["titulo", "categoria", "prioridad", "estado", "asignado_a"]
-    add_columns = ["titulo", "descripcion", "categoria", "prioridad", "estado", "asignado_a"]
-    edit_columns = add_columns
+    list_columns = ["id", "titulo", "solicitante", "categoria", "prioridad", "estado",
+                    "tecnico", "tiempo_respuesta", "tiempo_resolucion"]
+    order_columns = ["id", "titulo", "created_on", "fecha_atencion", "fecha_cierre"]
+    search_columns = ["titulo", "solicitante", "categoria", "prioridad", "estado", "asignado_a"]
+    add_columns = ["titulo", "descripcion", "categoria", "prioridad", "estado"]
+    edit_columns = ["titulo", "descripcion", "categoria", "prioridad", "estado", "asignado_a"]
     show_fieldsets = [
-        ("Ticket", {"fields": ["titulo", "descripcion", "categoria", "prioridad", "estado", "asignado_a"]}),
+        ("Ticket", {"fields": ["titulo", "descripcion", "categoria", "prioridad", "estado"]}),
+        ("Responsables", {"fields": ["solicitante", "asignado_a"]}),
+        ("Tiempos", {"fields": ["created_on", "fecha_atencion", "fecha_cierre",
+                                "tiempo_respuesta", "tiempo_resolucion"]}),
         ("Análisis con IA", {"fields": ["analisis_ia"], "expanded": True}),
     ]
     label_columns = {
@@ -67,10 +75,34 @@ class VistaTicket(ModelView):
         "categoria": "Categoría",
         "prioridad": "Prioridad",
         "estado": "Estado",
-        "asignado_a": "Asignado a",
+        "solicitante": "Solicitante",
+        "asignado_a": "Técnico asignado",
+        "tecnico": "Técnico asignado",
+        "fecha_atencion": "Inicio de atención",
+        "fecha_cierre": "Fecha de cierre",
+        "tiempo_respuesta": "Tiempo de respuesta",
+        "tiempo_resolucion": "Tiempo de resolución",
         "analisis_ia": "Análisis de IA",
         **ETIQUETAS_AUDITORIA,
     }
+
+    def _actualizar_tiempos(self, item):
+        ahora = datetime.now()
+        if item.estado and item.estado.nombre != "Abierto" and not item.fecha_atencion:
+            item.fecha_atencion = ahora
+            if not item.asignado_a_fk:  # quien empieza a atender queda como técnico
+                item.asignado_a_fk = g.user.id
+        if item.estado and item.estado.es_cerrado:
+            if not item.fecha_cierre:
+                item.fecha_cierre = ahora
+        else:
+            item.fecha_cierre = None  # si se reabre, se limpia el cierre
+
+    def pre_add(self, item):
+        self._actualizar_tiempos(item)
+
+    def pre_update(self, item):
+        self._actualizar_tiempos(item)
 
     @action("analizar_ia", "Analizar con IA", "¿Analizar este ticket con IA?", "fa-magic", single=True)
     def analizar_ia(self, item):

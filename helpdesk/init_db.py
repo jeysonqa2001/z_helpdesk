@@ -8,7 +8,6 @@ def init_db():
         Model.metadata.create_all(db.engine)
         print("✅ Tablas creadas correctamente en MySQL")
 
-        # Evita duplicar datos si lo ejecutas más de una vez
         if db.session.query(Estado).first():
             print("ℹ️ Los datos iniciales ya existen")
             return

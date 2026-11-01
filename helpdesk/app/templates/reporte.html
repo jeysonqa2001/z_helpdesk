@@ -1,0 +1,18 @@
+{% extends "appbuilder/base.html" %}
+{% block content %}
+<div class="hd-card">
+  <h2>{{ titulo }}</h2>
+  <form class="form-inline" method="get" style="margin-bottom:15px">
+    Desde <input type="date" name="desde" value="{{ desde }}" class="form-control">
+    Hasta <input type="date" name="hasta" value="{{ hasta }}" class="form-control">
+    <button class="btn btn-primary">Filtrar</button>
+  </form>
+  <table class="table table-striped">
+    <thead><tr>{% for c in columnas %}<th>{{ c }}</th>{% endfor %}</tr></thead>
+    <tbody>
+      {% for fila in filas %}<tr>{% for v in fila %}<td>{{ v }}</td>{% endfor %}</tr>
+      {% else %}<tr><td colspan="{{ columnas|length }}">Sin resultados</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

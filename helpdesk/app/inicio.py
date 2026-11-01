@@ -7,11 +7,21 @@ class VistaInicio(IndexView):
 
     @expose("/")
     def index(self):
+        from . import db
         from .models import Ticket, Estado
-        s = self.appbuilder.get_session
+
+        s = db.session
         estadisticas = {
-            "total": s.query(func.count(Ticket.id)).scalar(),
-            "abiertos": s.query(func.count(Ticket.id)).join(Estado).filter(Estado.es_cerrado == False).scalar(),
-            "cerrados": s.query(func.count(Ticket.id)).join(Estado).filter(Estado.es_cerrado == True).scalar(),
+            "total": s.query(func.count(Ticket.id)).scalar() or 0,
+            "abiertos": s.query(func.count(Ticket.id))
+                         .join(Estado, Ticket.estado_id == Estado.id)
+                         .filter(Estado.es_cerrado == False).scalar() or 0,
+            "cerrados": s.query(func.count(Ticket.id))
+                         .join(Estado, Ticket.estado_id == Estado.id)
+                         .filter(Estado.es_cerrado == True).scalar() or 0,
         }
-        return self.render_template(self.index_template, appbuilder=self.appbuilder, estadisticas=estadisticas)
+        return self.render_template(
+            self.index_template,
+            appbuilder=self.appbuilder,
+            estadisticas=estadisticas,
+        )

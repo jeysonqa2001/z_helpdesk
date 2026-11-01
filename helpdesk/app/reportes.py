@@ -1,15 +1,20 @@
-from datetime import datetime
+from datetime import datetime, timedelta
+
 from flask import request
 from flask_appbuilder import BaseView, expose, has_access
 from flask_appbuilder.security.sqla.models import User
 from sqlalchemy import func, case
+
 from . import appbuilder, db
 from .models import Departamento, Categoria, Prioridad, Estado, Ticket
 
 
 def _fechas():
     def p(v):
-        return datetime.strptime(v, "%Y-%m-%d") if v else None
+        try:
+            return datetime.strptime(v, "%Y-%m-%d") if v else None
+        except ValueError:
+            return None
     return p(request.args.get("desde")), p(request.args.get("hasta"))
 
 
@@ -18,7 +23,8 @@ def _filtrar_fechas(q):
     if desde:
         q = q.filter(Ticket.created_on >= desde)
     if hasta:
-        q = q.filter(Ticket.created_on <= hasta)
+        # "Hasta" incluye todo el día seleccionado
+        q = q.filter(Ticket.created_on < hasta + timedelta(days=1))
     return q
 
 

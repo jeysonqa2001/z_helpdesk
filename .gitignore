@@ -1,0 +1,6 @@
+.env
+helpdesk/.env
+helpdesk/config.py
+venv/
+helpdesk/venv/
+__pycache__/

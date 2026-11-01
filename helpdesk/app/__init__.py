@@ -9,7 +9,7 @@ from .inicio import VistaInicio
 SQLA = get_sqla_class()
 
 logging.basicConfig(format="%(asctime)s:%(levelname)s:%(name)s:%(message)s")
-logging.getLogger().setLevel(logging.DEBUG)
+logging.getLogger().setLevel(logging.INFO)
 
 app = Flask(__name__)
 app.config.from_object("config")
@@ -23,4 +23,4 @@ with app.app_context():
         indexview=VistaInicio,
     )
 
-    from . import models, views, reportes  # noqa: E402,F401
+    from . import models, views, reportes, chatbot  # noqa: E402,F401

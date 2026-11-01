@@ -110,15 +110,30 @@ class VistaTicket(ModelView):
             raise Exception("Primero pon el ticket 'En progreso' para registrar el inicio de atención.")
         self._actualizar_tiempos(item)
 
-    @action("analizar_ia", "Analizar con IA", "¿Analizar este ticket con IA?", "fa-magic", single=True)
-    def analizar_ia(self, item):
-        try:
-            item.analisis_ia = analizar_ticket(item)
-            self.datamodel.edit(item)
-            flash("Análisis generado correctamente", "success")
-        except Exception as e:
-            flash(f"Error con la IA: {e}", "danger")
-        return redirect(self.get_redirect())
+    @action("analizar_ia", "Analizar con IA", "¿Analizar con IA los tickets seleccionados?",
+            "fa-magic", single=False)
+    def analizar_ia(self, items):
+        # FAB puede entregar un ticket o una lista de tickets
+        if not isinstance(items, (list, tuple)):
+            items = [items]
+        if not items:
+            flash("Selecciona un ticket", "warning")
+            return redirect("/tickets/list/")
+
+        ok, errores = 0, []
+        for ticket in items:
+            try:
+                ticket.analisis_ia = analizar_ticket(ticket)
+                self.datamodel.edit(ticket)
+                ok += 1
+            except Exception as e:
+                errores.append(f"#{ticket.id}: {e}")
+
+        if ok:
+            flash(f"Análisis generado en {ok} ticket(s)", "success")
+        for err in errores:
+            flash(f"Error con la IA: {err}", "danger")
+        return redirect("/tickets/list/")
 
 
 class VistaDepartamento(ModelView):

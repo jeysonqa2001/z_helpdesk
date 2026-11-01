@@ -1,0 +1,86 @@
+{% extends "appbuilder/base.html" %}
+{% block content %}
+<div class="hd-card">
+  <h2>🤖 Asistente para técnicos</h2>
+  <p class="text-muted">Pregunta por diagnósticos, pasos de solución o pide redactar una respuesta. Si indicas un N° de ticket, el asistente lo usa como contexto.</p>
+
+  <div class="form-inline" style="margin-bottom:12px">
+    N° de ticket (opcional):
+    <input id="ticket_id" type="number" min="1" class="form-control" style="width:110px">
+    <button id="limpiar" class="btn btn-default" type="button">Nueva conversación</button>
+  </div>
+
+  <div id="mensajes" style="height:380px; overflow-y:auto; border:1px solid #ddd; border-radius:8px; padding:12px; background:#fafafa; margin-bottom:12px"></div>
+
+  <div class="input-group">
+    <input id="pregunta" type="text" class="form-control" placeholder="Ej: ¿Cómo soluciono un monitor que no enciende?" autocomplete="off">
+    <span class="input-group-btn">
+      <button id="enviar" class="btn btn-primary" type="button">Enviar</button>
+    </span>
+  </div>
+</div>
+
+<script>
+(function () {
+  var historial = [];
+  var caja = document.getElementById("mensajes");
+  var campo = document.getElementById("pregunta");
+  var boton = document.getElementById("enviar");
+
+  function burbuja(texto, quien) {
+    var d = document.createElement("div");
+    d.style.cssText = "margin-bottom:10px; padding:10px 14px; border-radius:10px; max-width:85%; white-space:pre-wrap;" +
+      (quien === "user" ? "background:#4f46e5; color:#fff; margin-left:auto;" :
+       quien === "error" ? "background:#fde8e8; color:#a00;" : "background:#fff; border:1px solid #ddd;");
+    d.textContent = texto;
+    caja.appendChild(d);
+    caja.scrollTop = caja.scrollHeight;
+    return d;
+  }
+
+  async function enviar() {
+    var texto = campo.value.trim();
+    if (!texto) return;
+    campo.value = "";
+    burbuja(texto, "user");
+    historial.push({ role: "user", content: texto });
+
+    boton.disabled = true;
+    var espera = burbuja("Pensando...", "bot");
+    try {
+      var r = await fetch("/asistente/preguntar/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          historial: historial,
+          ticket_id: document.getElementById("ticket_id").value
+        })
+      });
+      var datos = await r.json();
+      espera.remove();
+      if (!r.ok) {
+        burbuja(datos.error || "Error al consultar la IA.", "error");
+        historial.pop();
+      } else {
+        burbuja(datos.respuesta, "bot");
+        historial.push({ role: "assistant", content: datos.respuesta });
+      }
+    } catch (e) {
+      espera.remove();
+      burbuja("No se pudo conectar con el servidor.", "error");
+      historial.pop();
+    }
+    boton.disabled = false;
+    campo.focus();
+  }
+
+  boton.addEventListener("click", enviar);
+  campo.addEventListener("keydown", function (e) { if (e.key === "Enter") enviar(); });
+  document.getElementById("limpiar").addEventListener("click", function () {
+    historial = [];
+    caja.innerHTML = "";
+  });
+  burbuja("Hola, soy el asistente de soporte. ¿En qué ticket o problema te ayudo?", "bot");
+})();
+</script>
+{% endblock %}

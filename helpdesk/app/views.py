@@ -5,6 +5,7 @@ from flask_appbuilder import ModelView
 from flask_appbuilder.models.sqla.interface import SQLAInterface
 from flask_appbuilder.models.sqla.filters import BaseFilter
 from flask_appbuilder.actions import action
+from flask_appbuilder.security.sqla.models import User, Role
 
 from . import appbuilder, db
 from .models import Departamento, Categoria, Prioridad, Estado, Ticket, Comentario
@@ -19,7 +20,6 @@ ETIQUETAS_AUDITORIA = {
 
 
 class FiltroTicketsPorRol(BaseFilter):
-    """Admin y Tecnico ven todo; el Solicitante solo ve sus propios tickets."""
     name = "Por rol"
     arg_name = "rol"
 
@@ -28,6 +28,17 @@ class FiltroTicketsPorRol(BaseFilter):
         if "Admin" in roles or "Tecnico" in roles:
             return query
         return query.filter(Ticket.created_by_fk == g.user.id)
+
+
+class FiltroSoloTecnicos(BaseFilter):
+    name = "Solo técnicos"
+    arg_name = "tec"
+
+    def apply(self, query, value):
+        ids = (db.session.query(User.id)
+               .join(User.roles)
+               .filter(Role.name.in_(["Tecnico", "Admin"])))
+        return query.filter(User.id.in_(ids))
 
 
 class VistaComentario(ModelView):
@@ -61,6 +72,14 @@ class VistaTicket(ModelView):
     search_columns = ["titulo", "solicitante", "categoria", "prioridad", "estado", "asignado_a"]
     add_columns = ["titulo", "descripcion", "categoria", "prioridad", "estado"]
     edit_columns = ["titulo", "descripcion", "categoria", "prioridad", "estado", "asignado_a"]
+
+    add_form_query_rel_fields = {
+        "asignado_a": [["username", FiltroSoloTecnicos, ""]]
+    }
+    edit_form_query_rel_fields = {
+        "asignado_a": [["username", FiltroSoloTecnicos, ""]]
+    }
+
     show_fieldsets = [
         ("Ticket", {"fields": ["titulo", "descripcion", "categoria", "prioridad", "estado"]}),
         ("Responsables", {"fields": ["solicitante", "asignado_a"]}),
@@ -95,12 +114,12 @@ class VistaTicket(ModelView):
         if estado.nombre != "Abierto" and not item.fecha_atencion:
             item.fecha_atencion = ahora
             if not item.asignado_a_fk and g.user:
-                item.asignado_a_fk = g.user.id  # quien empieza a atender queda como técnico
+                item.asignado_a_fk = g.user.id
         if estado.es_cerrado:
             if not item.fecha_cierre:
                 item.fecha_cierre = ahora
         else:
-            item.fecha_cierre = None  # si se reabre, se limpia el cierre
+            item.fecha_cierre = None
 
     def pre_add(self, item):
         self._actualizar_tiempos(item)
@@ -113,7 +132,6 @@ class VistaTicket(ModelView):
     @action("analizar_ia", "Analizar con IA", "¿Analizar con IA los tickets seleccionados?",
             "fa-magic", single=False)
     def analizar_ia(self, items):
-        # FAB puede entregar un ticket o una lista de tickets
         if not isinstance(items, (list, tuple)):
             items = [items]
         if not items:
